@@ -18,7 +18,7 @@ class DVRouter (Entity):
             update = RoutingUpdate()
             for dest in self.routing_table[self].keys():
                 if dest in self.first_hops.keys() and self.first_hops[dest] == neighbor and dest != neighbor:
-                    update.add_destination(dest, 51)
+                    update.add_destination(dest, 50)
                 else:
                     update.add_destination(dest, self.routing_table[self][dest])
             self.send(update, self.neighbor_ports[neighbor], False)
@@ -32,10 +32,28 @@ class DVRouter (Entity):
                 self.neighbor_ports[neighbor] = port
                 self.link_latencies[neighbor] = packet.latency
 
-                if not neighbor in self.routing_table[self] or self.routing_table[self][neighbor] > packet.latency:
+                if not neighbor in self.routing_table[self]: 
                     self.routing_table[self][neighbor] = packet.latency
                     self.first_hops[neighbor] = neighbor
                     updated = True
+                elif self.routing_table[self][neighbor] > packet.latency:
+                    old_latency = self.routing_table[self][neighbor]
+                    if self.first_hops[neighbor] != neighbor:
+                        self.routing_table[self][neighbor] = packet.latency
+                        self.first_hops[neighbor] = neighbor
+                        updated = True
+                    else:
+                        for dest in self.routing_table[self].keys():
+                            if self.first_hops[dest] == neighbor:
+                                self.routing_table[self][dest] = self.routing_table[self][dest] + packet.latency - old_latency
+                                updated = True
+
+                elif self.routing_table[self][neighbor] < packet.latency and self.first_hops[neighbor] == neighbor:
+                    old_latency = self.routing_table[self][neighbor]
+                    for dest in self.routing_table[self].keys():
+                        if self.first_hops[dest] == neighbor:
+                            self.routing_table[self][dest] = self.routing_table[self][dest] + packet.latency - old_latency
+                            updated = True
 
             else:
                 if neighbor in self.routing_table.keys():
@@ -45,15 +63,13 @@ class DVRouter (Entity):
        
                 if self.first_hops[neighbor] == neighbor:
                     del self.first_hops[neighbor]
-                    self.routing_table[self][neighbor] = 51
-                    #del self.routing_table[self][neighbor]
+                    self.routing_table[self][neighbor] = 50
                     updated = True
 
                 for destination in self.first_hops.keys():
                     if self.first_hops[destination] == neighbor:
                         del self.first_hops[destination]
-                        self.routing_table[self][destination] = 51
-                        #del self.routing_table[self][destination]
+                        self.routing_table[self][destination] = 50
                         updated = True
 
         elif type(packet) is RoutingUpdate:
@@ -66,13 +82,13 @@ class DVRouter (Entity):
 
             # update our own distance vector if necessary
             for dest in dests:
-                if not dest in self.first_hops.keys() and self.routing_table[self][neighbor] < 51 and packet.get_distance(dest) < 51:
+                if not dest in self.first_hops.keys() and self.routing_table[self][neighbor] < 50 and packet.get_distance(dest) < 50:
                     self.first_hops[dest] = neighbor
                     self.routing_table[self][dest] = packet.get_distance(dest) + self.routing_table[self][neighbor]
                     updated = True
                 else:
                     distance_to_dest_through_neighbor = self.routing_table[neighbor][dest] + self.routing_table[self][neighbor]
-                    if self.routing_table[neighbor][dest] >= 51:
+                    if self.routing_table[neighbor][dest] >= 50:
                         if dest in self.first_hops.keys():
                             if self.first_hops[dest] == neighbor:
                                 if dest in self.link_latencies.keys():
@@ -80,7 +96,7 @@ class DVRouter (Entity):
                                     self.first_hops[dest] = dest
                                     updated = True
                                 else:
-                                    self.routing_table[self][dest] = 51
+                                    self.routing_table[self][dest] = 50
                                     del self.first_hops[dest]
                                     updated = True
 
@@ -92,7 +108,9 @@ class DVRouter (Entity):
                         if self.first_hops[dest] == neighbor:
                             self.routing_table[self][dest] = distance_to_dest_through_neighbor
                             updated = True
-                    else:
+                        elif self.routing_table[self][dest] + self.routing_table[self][neighbor] < self.routing_table[neighbor][dest]:
+                            updated = True
+                    elif distance_to_dest_through_neighbor == self.routing_table[self][dest]:
                         if self.first_hops[dest] != neighbor:
                             if self.neighbor_ports[self.first_hops[dest]] > self.neighbor_ports[neighbor]:
                                 self.first_hops[dest] = neighbor
@@ -103,7 +121,5 @@ class DVRouter (Entity):
             if packet.dst in self.first_hops.keys():
                 self.send(packet, self.neighbor_ports[self.first_hops[packet.dst]], False)
             
-
-
         if updated:
             self.send_routing_update()

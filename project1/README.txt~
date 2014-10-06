@@ -1,0 +1,8 @@
+My name: Kevin Hu
+Partner's name: Jade Hua
+
+Challenges: Handling links going down was difficult.
+
+New feature: The routers can be improved by adding autonomous systems that contain certain routers under their control, and routers under the same system have information about each other but not routers outside its system. 
+
+Our code can handle link weights by checking if a discovery packet's latency is greater than the 
